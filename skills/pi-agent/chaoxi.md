@@ -2,10 +2,11 @@
 name: chaoxi
 description: >
   CLI tool for querying and downloading A-share company announcements from cninfo.com.cn (巨潮网).
-  Use when the user mentions stock codes (6-digit), annual/quarterly reports, board resolutions,
-  shareholder meetings, performance forecasts, IPO filings, or any A-share filing with keywords
-  like "announcement", "filing", "report", "download". Do NOT use for stock price quotes, trading
-  analysis, or non-A-share (HK/US/etc.) filings.
+  Extract downloaded PDFs to structured Markdown. Use when the user mentions stock codes (6-digit),
+  annual/quarterly reports, board resolutions, shareholder meetings, performance forecasts,
+  IPO filings, or any A-share filing with keywords like "announcement", "filing", "report",
+  "download", or "extract". Do NOT use for stock price quotes, trading analysis, or non-A-share
+  (HK/US/etc.) filings.
 ---
 
 # chaoxi
@@ -42,6 +43,15 @@ chaoxi --keyword 回购
 chaoxi --codes 000001 --download -y
 ```
 
+### Extract PDFs to Markdown
+
+```bash
+chaoxi --codes 601998 --categories 年报 --extract -y
+```
+
+`--extract` implies `--download` (mutually exclusive). Converts each downloaded PDF
+to Markdown via `pdf-inspector` and saves to `./chaoxi_output/{timestamp}/md/`.
+
 ### JSON Output
 
 ```bash
@@ -67,7 +77,8 @@ chaoxi debug test-page
 | `--start <date>` | Start date, e.g. `2026-01-01` |
 | `--end <date>` | End date, e.g. `2026-06-30` |
 | `--download` | Download matching PDFs |
-| `-y` | Confirm download without prompt |
+| `--extract` | Download + extract to Markdown (implies --download) |
+| `-y` | Confirm download/extract without prompt |
 | `-d <dir>` | Output directory |
 | `-o <dir>` | Output directory |
 | `--json` | Output as JSON |
@@ -103,25 +114,32 @@ chaoxi debug test-page
       "pdf_url": "http://...",
       "adjunct_size": 1234567,
       "pdf_path": null,
-      "status": null
+      "status": null,
+      "md_path": null,
+      "extraction": null
     }
   ]
 }
 ```
 
 - `status`: `"downloaded"` / `"failed"` / `"skipped"` / `null`
+- `md_path`: relative path to extracted Markdown (`--extract` only)
+- `extraction`: `{status: "success"|"partial"|"failed"|"error", pdf_type, ...}`
 
 ## Limits
 
 - 30 results per page, 3000 max per query
 - 4 concurrent downloads max
+- Extract confirmation: prompts if > 30 PDFs
 - Output directory: `./chaoxi_output/{timestamp}/`
+- Markdown output: `./chaoxi_output/{timestamp}/md/`
 
 ## When to Use
 
 - User asks about A-share company filings, annual/quarterly reports
-- User mentions stock codes along with "announcement", "filing", "report"
+- User mentions stock codes along with "announcement", "filing", "report", "extract"
 - User wants to download announcement PDFs from cninfo
+- User wants to extract PDF content to structured Markdown
 - User searches filings by keyword, category, board, or date range
 
 ## When NOT to Use

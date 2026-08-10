@@ -1,6 +1,6 @@
 # chaoxi
 
-巨潮网（cninfo.com.cn）公告数据获取 CLI 工具。查询上市公司公告、按分类筛选、下载 PDF。
+巨潮网（cninfo.com.cn）公告数据获取 CLI 工具。查询上市公司公告、按分类筛选、下载 PDF、提取 Markdown。
 
 ## 安装
 
@@ -38,8 +38,8 @@ uv run chaoxi --help
 ### 方式三：tar.gz 发行包
 
 ```bash
-tar xzf chaoxi-v0.1.1.tar.gz
-cd chaoxi-v0.1.1
+tar xzf chaoxi-v0.2.0.tar.gz
+cd chaoxi-v0.2.0
 uv tool install .    # 全局安装
 # 或
 uv sync              # 开发安装
@@ -75,6 +75,7 @@ AI 编码助手的 skill 文件**不包含在安装包内**。如需在 OpenCode
 chaoxi debug test-page                             # 测试连通性
 chaoxi --codes 000001                              # 平安银行近 90 天公告
 chaoxi --codes 000001 --keyword 回购 --download -y  # 下载回购相关 PDF
+chaoxi --codes 601998 --categories 年报 --extract -y # 下载年报并提取 Markdown
 ```
 
 ## 查询
@@ -106,6 +107,14 @@ chaoxi --codes 000001 --download        # 下载（>50 个弹确认）
 chaoxi --codes 000001 --download -y     # 跳过确认
 chaoxi --codes 000001 --download -y -d ./pdfs  # 指定目录
 ```
+
+## 提取 Markdown
+
+```bash
+chaoxi --codes 601998 --categories 年报 --extract -y # 下载并提取（--extract 隐含 --download）
+```
+
+提取后在 `md/` 目录生成 Markdown 文件，终端显示四态提取结果（✅成功 / ⚠️部分乱码 / ❌扫描件 / ❌错误）。
 
 ## 输出
 
@@ -142,9 +151,10 @@ chaoxi debug inspect-api         # 查看 API 原始响应
 | `--categories` | 全部 26 类 | 中文分类名，逗号分隔 |
 | `--keyword` | — | 标题关键词精确匹配 |
 | `--board` | 全部 | 深主板/沪主板/创业板/科创板/北交所 |
-| `--industry` | — | 行业（v0.2 生效） |
-| `--download` | `False` | 开启 PDF 下载 |
-| `-y` / `--yes` | `False` | 跳过下载确认 |
+| `--industry` | — | 行业 |
+| `--download` | `False` | 下载 PDF 文件 |
+| `--extract` | `False` | 下载 PDF 并提取为 Markdown（隐含 --download） |
+| `-y` / `--yes` | `False` | 跳过下载/提取确认 |
 | `-d` | `{output}/pdfs/` | PDF 存放目录 |
 | `-o` | 自动时间戳 | 输出目录 |
 | `--json` | `False` | stdout JSON 输出 |
@@ -170,9 +180,29 @@ chaoxi_output/
 └── 20260808_120000/              # 会话目录
     ├── announcements.json        # 公告元数据
     ├── failed_downloads.json     # 下载失败清单
-    └── pdfs/                     # PDF 文件
-        └── {code}_{id}_{title}.pdf
+    ├── pdfs/                     # PDF 文件
+    │   └── {code}_{id}_{title}.pdf
+    └── md/                       # 提取的 Markdown（--extract 时）
+        └── {code}_{id}_{title}.md
 ```
+
+## 致谢
+
+本项目使用了以下第三方开源组件：
+
+- [pdf-inspector](https://github.com/firecrawl/pdf-inspector) by Firecrawl (MIT) — PDF 结构化提取
+
+本项目在设计阶段参考了以下开源项目（未使用其源码）：
+
+- [use_cninfo](https://github.com/rollysys/use_cninfo) by rollysys
+- [announcement_filter](https://github.com/rollysys/announcement_filter) by rollysys
+- [Annualreport_tools](https://github.com/legeling/Annualreport_tools) by legeling
+- [CninfoDistributedSpider](https://github.com/flicck/CninfoDistributedSpider) by flicck
+- [cninfo](https://github.com/Christings/cninfo) by Christings
+- [CnInfoReports](https://github.com/tr1s7an/CnInfoReports) by tr1s7an
+- [cninfo_process](https://github.com/gaodechen/cninfo_process) by gaodechen
+- [cninfo-mcp](https://github.com/youhaozhao/cninfo-mcp) by youhaozhao
+- [cninfo_spider](https://github.com/jingmian/cninfo_spider) by jingmian
 
 ## 更多
 

@@ -15,6 +15,7 @@ from chaoxi.cli.debug import Debugger
 from chaoxi.cli.log_cmd import LogViewer
 from chaoxi.cli.params import QueryConfig, build_query_config
 from chaoxi.downloader.downloader import PdfDownloader
+from chaoxi.extractor import PdfExtractor
 from chaoxi.exceptions import (
     FileSystemError,
     NetworkError,
@@ -60,8 +61,9 @@ def chaoxi(
     keyword: str | None = Option(None, "--keyword", help="标题关键词"),
     board: str | None = Option(None, "--board", help="板块（深主板/沪主板/创业板/科创板/北交所）"),
     industry: str | None = Option(None, "--industry", help="行业"),
-    download: bool = Option(False, "--download", help="开启 PDF 下载模式"),
-    yes: bool = Option(False, "--yes", "-y", help="跳过下载确认提示"),
+    download: bool = Option(False, "--download", help="下载 PDF 文件"),
+    extract: bool = Option(False, "--extract", help="下载 PDF 并提取为 Markdown（隐含 --download）"),
+    yes: bool = Option(False, "--yes", "-y", help="跳过下载/提取确认提示"),
     download_dir: str | None = Option(None, "--download-dir", "-d", help="PDF 存放目录"),
     o: str | None = Option(None, "-o", help="输出目录"),
     json_stdout: bool = Option(False, "--json", help="输出 JSON 到 stdout（管道模式）"),
@@ -74,7 +76,7 @@ def chaoxi(
         settings = get_settings()
         config = build_query_config(
             start, end, codes, categories, keyword, board, industry,
-            max_results, download, yes, download_dir, json_stdout, o, verbose,
+            max_results, download, extract, yes, download_dir, json_stdout, o, verbose,
             settings,
         )
     except ValidationError as e:
@@ -132,6 +134,29 @@ async def _main_async(config: QueryConfig, settings: AppSettings) -> None:
                     "download_done", session_id,
                     {"success": tracker.success, "failed": tracker.failed, "skipped": tracker.skipped, "total_bytes": tracker.total_bytes},
                 )
+
+            if config.extract_mode:
+                downloaded = [a for a in result.announcements if a.status == "downloaded"]
+                if downloaded:
+                    do_extract = True
+                    if len(downloaded) > 30 and not config.skip_confirm and sys.stdin.isatty():
+                        answer = input(
+                            f"\u26a0\ufe0f  即将提取 {len(downloaded)} 份 PDF 为 Markdown（预计 20-60 秒），继续?\n"
+                            f"    建议：仅生成 JSON 文件，后续交由 AI 处理 PDF 下载与识别\n"
+                            f"[y/N]: "
+                        )
+                        if answer.strip().lower() != "y":
+                            Console().print("[yellow]已跳过提取。[/yellow]")
+                            do_extract = False
+                    if do_extract:
+                        extractor = PdfExtractor(settings, output_dir)
+                        await logger.write("extract_start", session_id, {"total": len(downloaded)})
+                        result.announcements, e_tracker = await extractor.extract(result.announcements)
+                        await logger.write("extract_done", session_id, {
+                            "success": e_tracker.success, "partial": e_tracker.partial,
+                            "failed": e_tracker.failed, "error": e_tracker.error,
+                            "total_pages": e_tracker.total_pages,
+                        })
 
             formatter = OutputFormatter(
                 settings,

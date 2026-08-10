@@ -19,6 +19,7 @@ class QueryConfig(BaseModel):
     industry: str | None = None
     max_results: int = Field(default=3000, ge=1, le=3000)
     download_mode: bool = False
+    extract_mode: bool = False
     skip_confirm: bool = False
     download_dir: str | None = None
     output_dir: str | None = None
@@ -117,6 +118,7 @@ def build_query_config(
     industry: str | None,
     max_results: int,
     download: bool,
+    extract: bool,
     yes: bool,
     download_dir: str | None,
     json_stdout: bool,
@@ -128,6 +130,12 @@ def build_query_config(
         raise ValidationError(
             message="--max-results 超出范围",
             suggestion="请输入 1 到 3000 之间的整数",
+        )
+
+    if download and extract:
+        raise ValidationError(
+            message="--download 与 --extract 互斥，请只选择一种。",
+            suggestion="--extract 已隐含下载功能，无需同时指定 --download",
         )
 
     if json_stdout and o is not None:
@@ -177,7 +185,8 @@ def build_query_config(
         board=parsed_board,
         industry=parsed_industry,
         max_results=max_results,
-        download_mode=download,
+        download_mode=download or extract,
+        extract_mode=extract,
         skip_confirm=yes,
         download_dir=download_dir,
         output_dir=o,

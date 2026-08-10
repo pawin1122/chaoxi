@@ -46,6 +46,7 @@ class OutputFormatter:
         table.add_column("标题", max_width=60)
         table.add_column("日期", max_width=10, no_wrap=True)
         table.add_column("大小", max_width=8, no_wrap=True)
+        table.add_column("提取", max_width=8, no_wrap=True)
 
         sorted_announcements = sorted(
             result.announcements,
@@ -68,6 +69,7 @@ class OutputFormatter:
                 title,
                 a.announcement_time,
                 self._format_size(a.adjunct_size * 1024),
+                self._format_extraction(a.extraction),
             )
 
         self._console.print(table)
@@ -87,6 +89,9 @@ class OutputFormatter:
 
         if any(a.status for a in result.announcements):
             self._print_download_summary(result)
+
+        if any(a.extraction for a in result.announcements):
+            self._print_extract_summary(result)
 
     def _json_file_output(self, result: AnnouncementList) -> None:
         output_path = Path(self._output_dir) / "announcements.json"
@@ -135,3 +140,47 @@ class OutputFormatter:
             return f"{size / 1024:.1f}KB"
         else:
             return f"{size / (1024 * 1024):.1f}MB"
+
+    @staticmethod
+    def _format_extraction(extraction: dict | None) -> str:
+        if extraction is None:
+            return "[dim]-[/dim]"
+        status = extraction.get("status")
+        if status == "success":
+            return "[green]✅[/green]"
+        elif status == "partial":
+            garbled_pages = extraction.get("garbled_pages", [])
+            n = len(garbled_pages)
+            return f"[yellow]⚠️{n}页[/yellow]"
+        elif status == "failed":
+            pdf_type = extraction.get("pdf_type", "")
+            if pdf_type in ("scanned", "image_based"):
+                return "[red]❌扫描件[/red]"
+            else:
+                return "[red]❌不可提取[/red]"
+        elif status == "error":
+            return "[red]❌错误[/red]"
+        return "[dim]-[/dim]"
+
+    def _print_extract_summary(self, result: AnnouncementList) -> None:
+        success = sum(
+            1 for a in result.announcements
+            if a.extraction and a.extraction.get("status") == "success"
+        )
+        partial = sum(
+            1 for a in result.announcements
+            if a.extraction and a.extraction.get("status") == "partial"
+        )
+        failed = sum(
+            1 for a in result.announcements
+            if a.extraction and a.extraction.get("status") == "failed"
+        )
+        error = sum(
+            1 for a in result.announcements
+            if a.extraction and a.extraction.get("status") == "error"
+        )
+        self._console.print(
+            f"提取: [green]{success} 成功[/green] / "
+            f"[yellow]{partial} 部分[/yellow] / "
+            f"[red]{failed + error} 失败[/red]"
+        )

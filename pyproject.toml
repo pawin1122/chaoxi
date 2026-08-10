@@ -1,6 +1,6 @@
 [project]
 name = "chaoxi"
-version = "0.1.1"
+version = "0.2.0"
 description = "巨潮网数据获取CLI工具"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,6 +14,7 @@ dependencies = [
     "rich>=13.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
+    "pdf-inspector>=0.2.6",
 ]
 
 [build-system]

@@ -33,6 +33,8 @@ class Announcement(BaseModel):
     pdf_path: str | None = None
     status: str | None = None
     error: str | None = None
+    md_path: str | None = None
+    extraction: dict | None = None
 
 
 class QueryMeta(BaseModel):

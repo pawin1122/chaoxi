@@ -1,15 +1,16 @@
 ---
 name: chaoxi
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   requires:
     bins: ["uv", "chaoxi"]
 description: >-
   CLI tool for fetching A-share company announcements from cninfo.com.cn (巨潮网).
   Query filings by stock code, category, keyword, board, or date range.
-  Download announcement PDFs. Use when the user asks about A-share filings,
-  annual reports, quarterly reports, board resolutions, shareholder meetings,
-  or requests with stock codes + "announcement"/"filing"/"report"/"download".
+  Download announcement PDFs and extract them to Markdown. Use when the user
+  asks about A-share filings, annual reports, quarterly reports, board
+  resolutions, shareholder meetings, or requests with stock codes +
+  "announcement"/"filing"/"report"/"download"/"extract".
   Do not use for general Q&A, coding, translation, or semantic analysis of filings.
 trigger: >-
   cninfo, 巨潮网, A-share announcement, stock filing, annual report,
@@ -43,6 +44,7 @@ uv run chaoxi debug test-page
 - Filter by board (深主板/沪主板/创业板/科创板/北交所)
 - Date range queries (default: last 90 days)
 - Download announcement PDFs
+- Extract PDFs to structured Markdown (via `--extract`)
 
 ## Common Commands
 
@@ -64,6 +66,9 @@ chaoxi --codes 000001 --keyword 回购
 
 # Download PDFs
 chaoxi --codes 000001 --download -y
+
+# Download and extract PDFs to Markdown
+chaoxi --codes 601998 --categories 年报 --extract -y
 
 # JSON output for AI parsing
 chaoxi --codes 000001 --json
@@ -103,8 +108,9 @@ chaoxi debug test-page           # Connectivity check
 | `--keyword` | — | Title keyword (client exact match) |
 | `--board` | all | 深主板/沪主板/创业板/科创板/北交所 |
 | `--industry` | ignored | v0.2 |
-| `--download` | false | Enable PDF download |
-| `-y` / `--yes` | false | Skip download confirmation |
+| `--download` | false | Download PDF files |
+| `--extract` | false | Download PDFs and extract to Markdown (implies --download, mutually exclusive) |
+| `-y` / `--yes` | false | Skip download/extract confirmation |
 | `-d` | auto | PDF output directory |
 | `-o` | auto timestamp | Output directory |
 | `--json` | false | Output JSON to stdout |
@@ -140,7 +146,9 @@ chaoxi debug test-page           # Connectivity check
       "adjunct_size": 286,
       "pdf_path": "pdfs/000001_1225451412.pdf",
       "status": "downloaded",
-      "error": null
+      "error": null,
+      "md_path": "md/000001_1225451412.md",
+      "extraction": {"status": "success", "pdf_type": "text_based"}
     }
   ]
 }
@@ -151,6 +159,8 @@ Fields:
 - `total_raw`: raw API count before dedup
 - `truncated`: true if pagination limit reached
 - `status`: `"downloaded"` / `"failed"` / `"skipped"` / `null` (not downloaded)
+- `md_path`: relative path to extracted Markdown file (only when `--extract` used)
+- `extraction`: `{status: "success"|"partial"|"failed"|"error", pdf_type, ...}` — extraction result
 - `announcement_type`: pipe-separated category codes
 
 ## Typical Use Cases
@@ -166,6 +176,7 @@ Fields:
 | Market-wide category | `chaoxi --categories {category} --start {date}` |
 | Board-specific | `chaoxi --board 创业板 --categories 业绩预告` |
 | Download PDFs | `chaoxi --codes {code} --download -y` |
+| Extract PDFs to Markdown | `chaoxi --codes {code} --categories 年报 --extract -y` |
 | JSON for analysis | `chaoxi --codes {code} --json` |
 
 ## Limits
@@ -173,7 +184,8 @@ Fields:
 - pageSize: 30 per page (API hard limit)
 - Max results: 3000 per query
 - Concurrency: max 4 (HTTP 403 otherwise)
-- PDF confirmation: prompts if > 50 files, `-y` to skip
+- PDF confirmation: prompts if > 50 files, `-y` to skip (extract prompts if > 30)
+- Extracted Markdown: `./chaoxi_output/{timestamp}/md/`
 - Output: `./chaoxi_output/{timestamp}/`
 - Keyword search: client-side exact match on title, not server-side fuzzy
 - Full docs: `doc/usage.md`

@@ -1,6 +1,6 @@
 # chaoxi 使用手册
 
-> v0.1.1 | 巨潮网（cninfo.com.cn）公告数据获取 CLI 工具
+> v0.2.0 | 巨潮网（cninfo.com.cn）公告数据获取 CLI 工具
 
 ---
 
@@ -89,7 +89,7 @@ HTTPS_PROXY=http://127.0.0.1:7890
 
 ### 主命令 `chaoxi`
 
-查询巨潮网公告，可选下载 PDF。
+查询巨潮网公告，可选下载 PDF 或提取为 Markdown。
 
 ```
 chaoxi [OPTIONS]
@@ -209,6 +209,22 @@ chaoxi --codes 000001 --keyword 回购 --download
 chaoxi --codes 000001 --download -y -d ./my_pdfs
 ```
 
+### PDF 提取
+
+```bash
+# 下载并自动提取为 Markdown
+chaoxi --codes 601998 --categories 年报 --extract -y
+
+# 提取确认：>30 份 PDF 时弹提示，-y 跳过
+chaoxi --codes 000001 --extract -y
+```
+
+提取后终端表格新增"提取"列，显示四种状态：
+- `✅` — 完整提取（text_based PDF，无乱码）
+- `⚠️N页` — 部分乱码（N 页编码异常，已跳过）
+- `❌扫描件` — 扫描件/图片型 PDF，无法提取文本
+- `❌错误` — 提取过程中异常
+
 ### 输出控制
 
 ```bash
@@ -280,8 +296,9 @@ chaoxi log --clear
 | `--keyword` | `str` | — | 标题关键词 |
 | `--board` | `str` | 全部 | 深主板/沪主板/创业板/科创板/北交所 |
 | `--industry` | `str` | — | 行业（v0.2 生效） |
-| `--download` | `bool` | `False` | 开启 PDF 下载 |
-| `-y` / `--yes` | `bool` | `False` | 跳过下载确认 |
+| `--download` | `bool` | `False` | 下载 PDF 文件 |
+| `--extract` | `bool` | `False` | 下载 PDF 并提取为 Markdown（隐含 --download，与 --download 互斥） |
+| `-y` / `--yes` | `bool` | `False` | 跳过下载/提取确认 |
 | `-d` / `--download-dir` | `str` | `{output}/pdfs/` | PDF 存放目录 |
 | `-o` | `str` | 自动生成时间戳 | 输出目录 |
 | `--json` | `bool` | `False` | stdout JSON 输出 |
@@ -297,8 +314,10 @@ chaoxi_output/
 └── 20260808_120000/              # 时间戳会话目录
     ├── announcements.json        # 公告元数据
     ├── failed_downloads.json     # 下载失败清单（--download 时）
-    └── pdfs/                     # PDF 文件（--download 时）
-        └── {code}_{id}_{title}.pdf
+    ├── pdfs/                     # PDF 文件（--download 时）
+    │   └── {code}_{id}_{title}.pdf
+    └── md/                       # 提取的 Markdown（--extract 时）
+        └── {code}_{id}_{title}.md
 ```
 
 ### announcements.json 结构
@@ -330,7 +349,9 @@ chaoxi_output/
       "adjunct_size": 286,
       "pdf_path": "pdfs/000001_1225451412_xxx.pdf",
       "status": "downloaded",
-      "error": null
+      "error": null,
+      "md_path": "md/000001_1225451412_xxx.md",
+      "extraction": {"status": "success", "pdf_type": "text_based"}
     }
   ]
 }
@@ -435,6 +456,7 @@ GET {cninfo_base_url}/new/announcement/download?bulletinId={id}&announceTime={YY
 ⚠ 即将下载 {N} 个 PDF（约 {size} MB），可能触发网站限流或封禁。
 是否继续？[y/N]:
 ```
+下载 >50 时追加 AI 处理建议："建议：仅生成 JSON 文件，后续交由 AI 处理 PDF 下载与识别"。
 `-y` 强制跳过。非 TTY 环境（管道/脚本）自动跳过。
 
 **结果排序**：`asyncio.as_completed` 返回完成顺序非输入顺序，下载后按原始输入顺序恢复排列。
@@ -455,7 +477,7 @@ GET {cninfo_base_url}/new/announcement/download?bulletinId={id}&announceTime={YY
 
 - **格式**：JSONL（每行一个 JSON 对象）
 - **位置**：`{CHAOXI_OUTPUT_DIR}/.chaoxi.log`（固定在默认输出目录，不受 `-o` 影响）
-- **事件类型**：`session_start` / `params_parsed` / `query_done` / `download_done` / `session_done` / `session_error`
+- **事件类型**：`session_start` / `params_parsed` / `query_done` / `download_done` / `extract_start` / `extract_done` / `session_done` / `session_error`
 - **轮回**：超过 `MAX_LOG_LINES`（默认 500）自动删除前 10%
 - **并发安全**：`asyncio.Lock` 防并发写入交错
 
@@ -473,6 +495,8 @@ GET {cninfo_base_url}/new/announcement/download?bulletinId={id}&announceTime={YY
 | 结果截断（--max-results） | `本次查询命中 {n} 条公告，已截取前 {m} 条。` | 黄色警告，继续 |
 | 单文件下载失败 | 无终端提示（详情在 `failed_downloads.json`） | 继续其余 |
 | 全部下载失败 | 返回全 `status=failed` 的 AnnouncementList | CLI 提示后正常结束 |
+| 单文件提取失败 | extraction.status 为 failed/error，详情在 JSON | 继续其余 |
+| 提取部分乱码 | extraction.status 为 partial，标注乱码页数 | 成功页正常 |
 
 ### 硬限制
 
@@ -487,12 +511,36 @@ GET {cninfo_base_url}/new/announcement/download?bulletinId={id}&announceTime={YY
 | 板块过滤 | 客户端 pageColumn | 创业板/科创板无独立 plate 值 |
 | industry | v0.1 不生效 | v0.2 将支持（`trade=中文行业名` 实测有效） |
 
+### 提取机制
+
+**流程**：
+```
+检查 status==downloaded → 检查 pdf_path 文件存在
+→ process_pdf(pdf_path) → 判定提取状态
+→ 写入 .md 文件 → 设置 md_path / extraction 字段
+```
+
+**提取引擎**：[pdf-inspector](https://github.com/firecrawl/pdf-inspector)（Rust 高性能、纯本地处理、MIT 协议）。
+
+**执行模式**：串行（逐份处理）。pdf-inspector 内部使用 Rust 多线程并行，chaoxi 层面不再并发。
+
+**四种状态**：
+- `success`：text_based PDF，完整提取 Markdown
+- `partial`：部分页含编码问题（`has_encoding_issues=True`），乱码页已丢弃，其余正常提取
+- `failed`：扫描件/图片型 PDF（`pdf_type` 为 scanned/image_based），无法文本提取
+- `error`：处理异常（PDF 损坏、超时等）
+
+**确认提示**：待提取 PDF > 30 时弹确认（含页数估算）。`-y` 跳过。
+
+**文件输出**：Markdown 文件写入 `{output_dir}/md/{code}_{id}_{title}.md`，
+路径以相对路径记录在 `ann.md_path`。提取状态与元数据记录在 `ann.extraction` 字典中。
+
 ---
 
 ## 测试
 
 ```bash
-uv run pytest                    # 全部测试（138 个）
+uv run pytest                    # 全部测试（157 个）
 uv run pytest tests/test_query.py -v  # 单个模块
 ```
 

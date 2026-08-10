@@ -91,9 +91,11 @@ class PdfDownloader:
             return True
         if self._skip_confirm:
             return True
-        answer = input(
-            f"即将下载 {total} 个 PDF（约 {estimated_size_mb:.1f} MB），是否继续？[y/N]: "
-        )
+        prompt = f"即将下载 {total} 个 PDF（约 {estimated_size_mb:.1f} MB），是否继续？"
+        if total > 50:
+            prompt += "\n    建议：仅生成 JSON 文件，后续交由 AI 处理 PDF 下载与识别"
+        prompt += "\n[y/N]: "
+        answer = input(prompt)
         return answer.strip().lower() == "y"
 
     async def _download_all(

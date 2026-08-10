@@ -2,18 +2,19 @@
 name: chaoxi
 description: >-
   Query and download A-share company announcements from cninfo.com.cn (巨潮网).
-  Use when the user asks for stock filings, annual reports (年报), quarterly reports
-  (一季报/半年报/三季报), board resolutions (董事会/监事会/股东会), keyword searches
-  on announcement titles, or PDF downloads of filings. Trigger on 6-digit stock codes
-  combined with "announcement", "filing", "report", "公告", or "披露".
+  Extract downloaded PDFs to structured Markdown. Use when the user asks for stock
+  filings, annual reports (年报), quarterly reports (一季报/半年报/三季报), board
+  resolutions (董事会/监事会/股东会), keyword searches on announcement titles, PDF
+  downloads of filings, or PDF-to-Markdown extraction. Trigger on 6-digit stock codes
+  combined with "announcement", "filing", "report", "公告", "披露", or "extract".
   Do not use for general stock analysis, trading advice, investment research,
   or non-A-share markets (HK, US, etc.).
 ---
 
 # chaoxi — A-Share Filings Client for cninfo.com.cn (巨潮网)
 
-This skill provides access to the `chaoxi` CLI tool, which queries the public
-disclosure system at cninfo.com.cn for A-share (沪深北) company announcements.
+The `chaoxi` CLI tool queries the public disclosure system at cninfo.com.cn
+for A-share (沪深北) company announcements and can extract PDFs to Markdown.
 
 ## Before You Begin
 
@@ -27,7 +28,7 @@ disclosure system at cninfo.com.cn for A-share (沪深北) company announcements
 ```
 chaoxi [--codes CODE[,CODE...]] [--categories CAT[,CAT...]] [--keyword KEYWORD]
        [--board BOARD] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
-       [--json] [--max-results N] [--download] [-y] [-d DIR]
+       [--json] [--max-results N] [--download | --extract] [-y] [-d DIR]
 ```
 
 ### Scoping rule
@@ -102,7 +103,25 @@ chaoxi --codes 000001,600519 --categories 年报 --start 2026-01-01 --download -
 - Concurrent downloads are capped at **4** internally to avoid HTTP 403.
 
 **Safety check:** If a query returns **more than 50 PDFs** and `-y` was not
-supplied, warn the user about the download volume before proceeding.
+supplied, warn the user about the download volume before proceeding. The tool
+also displays a suggestion to use JSON-only mode for large downloads.
+
+## Extracting Markdown from PDFs (`--extract`)
+
+```
+chaoxi --codes 601998 --categories 年报 --extract -y
+```
+
+- `--extract`: enables download + PDF-to-Markdown extraction. Implies `--download`.
+- **Mutually exclusive** with `--download` — pick one mode.
+- After downloading PDFs, each PDF is processed by `pdf-inspector` (Rust, local)
+  and saved as `.md` in `./chaoxi_output/{timestamp}/md/`.
+- Extraction results shown as a new terminal column with four statuses:
+  ✅ success, ⚠️N pages garbled, ❌ scanned/unreadable, ❌ error.
+- JSON output adds `md_path` (relative path) and `extraction` object with
+  `status`, `pdf_type`, `garbled_pages`, and `page_count`.
+- **Confirmation:** prompts if > 30 PDFs pending extraction, `-y` to skip.
+- Extraction runs **serially** — pdf-inspector uses internal Rust parallelism.
 
 ## JSON Output (`--json`)
 
@@ -122,6 +141,8 @@ Key response fields:
 | `query.truncated` | `true` if the 3000-result pagination cap was hit |
 | `announcements[].status` | `"downloaded"`, `"failed"`, `"skipped"`, or `null` |
 | `announcements[].pdf_url` | Direct cninfo static server URL |
+| `announcements[].md_path` | Relative path to extracted `.md` file (--extract only) |
+| `announcements[].extraction` | `{status, pdf_type, garbled_pages?, page_count?, error?}` |
 | `announcements[].announcement_id` | Unique identifier; can reconstruct PDF URLs |
 | `announcements[].adjunct_size` | File size in KB as reported by cninfo |
 
@@ -146,6 +167,7 @@ chaoxi debug test-page           # Connectivity check (run first!)
 | "XX公司董事会决议公告" | `chaoxi --codes {code} --categories 董事会` |
 | "全市场今天的年报" | `chaoxi --categories 年报 --start {today}` |
 | "导出JSON给我分析" | `chaoxi --codes {code} --json` |
+| "提取年报为Markdown" | `chaoxi --codes {code} --categories 年报 --extract -y` |
 
 ## Hard Limits (Do Not Work Around)
 
@@ -163,12 +185,17 @@ chaoxi debug test-page           # Connectivity check (run first!)
 - **A-share only** — covers 深交所, 上交所, and 北交所. Hong Kong, US, or
   other exchange filings are not supported by this tool.
 
+- **Extraction requires pdf-inspector** — auto-installed as pip dependency.
+  Does not require OCR, GPU, or external services. Scanned/image PDFs will be
+  reported as `"failed"` with no text extracted.
+
 ## What NOT to Do
 
 - Do not use for stock price analysis, trading signals, or investment advice.
 - Do not use for non-A-share markets (HKEX, NYSE, NASDAQ, etc.).
 - Do not attempt to parse, summarize, or semantically analyze downloaded PDF
-  content — the tool only fetches the files, it does not read them.
+  content — the tool only fetches the files, it does not read them. To read
+  PDF content, use `--extract` to convert to Markdown first.
 - Do not run multiple concurrent `chaoxi` processes against the same output
   directory — each session is isolated by timestamp, and concurrent writes
   to the same output will corrupt results.
