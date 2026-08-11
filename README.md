@@ -1,9 +1,3 @@
-<p align="center">
-  <a href="https://github.com/pawin1122/chaoxi">
-    <img src=".github/logo.svg" alt="chaoxi" height="80" />
-  </a>
-</p>
-
 <h1 align="center">chaoxi</h1>
 
 <p align="center">
@@ -15,7 +9,6 @@
   <a href="https://pypi.org/project/chaoxi/"><img src="https://img.shields.io/badge/pypi-v0.2.0-blue.svg" alt="PyPI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+"></a>
   <a href="https://github.com/pawin1122/chaoxi/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License"></a>
-  <a href="https://github.com/pawin1122/chaoxi"><img src="https://img.shields.io/github/stars/pawin1122/chaoxi?style=social" alt="GitHub stars"></a>
 </p>
 
 ---
